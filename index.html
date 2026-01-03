@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HIC Group – Site Online Funcional</title>
+  <style>
+    :root{--primary:#0f2a44;--accent:#25D366;--danger:#e74c3c;--bg:#f5f7fa}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg)}
+    header{background:var(--primary);color:#fff;padding:16px}
+    nav{display:flex;justify-content:space-between;align-items:center}
+    nav .logo{display:flex;align-items:center;gap:10px}
+    nav img{height:40px;border-radius:6px}
+    nav a{color:#fff;text-decoration:none;margin-left:12px;font-weight:600}
+    section{padding:40px 20px;max-width:1100px;margin:auto}
+    .hero{padding:60px 20px;background:#1e3d59;color:#fff;text-align:center}
+    .hero img{max-width:120px;margin-bottom:20px;border-radius:12px}
+    .btn{background:var(--accent);color:#fff;padding:12px;border:none;border-radius:6px;cursor:pointer;width:100%}
+    .btn-danger{background:var(--danger)}
+    .grid{display:grid;grid-template-columns:1fr;gap:20px}
+    @media(min-width:768px){.grid{grid-template-columns:repeat(3,1fr)}}
+    .card{background:#fff;border-radius:10px;padding:15px;box-shadow:0 5px 15px rgba(0,0,0,.1);display:flex;flex-direction:column}
+    .card img{width:100%;border-radius:8px;margin-bottom:10px;max-height:200px;object-fit:cover}
+    .card h3{margin:5px 0}
+    .card p{flex:1}
+    input,textarea{width:100%;padding:12px;margin:8px 0;border-radius:6px;border:1px solid #ccc}
+    .admin-wrapper,.chat-box{background:#fff;border-radius:12px;padding:20px;box-shadow:0 5px 15px rgba(0,0,0,.1)}
+    #admin{display:none}
+    #chat{display:none}
+    .chat-msg{background:#eef2f6;padding:12px;border-radius:8px;margin-bottom:15px;white-space:pre-line}
+  </style>
+</head>
+<body>
+
+<header>
+  <nav>
+    <div class="logo">
+      <img src="https://via.placeholder.com/80x80.png?text=LOGO" alt="Logo">
+      <strong>HIC GROUP</strong>
+    </div>
+    <div>
+      <a href="#catalogo">Catálogo</a>
+      <a href="#" onclick="showAdmin()">Administrador</a>
+    </div>
+  </nav>
+</header>
+
+<section class="hero">
+  <img src="https://via.placeholder.com/150x150.png?text=HIC+GROUP" alt="Imagem do site">
+  <h1>Bem-vindo</h1>
+  <p>Compre nossos produtos de forma simples e segura</p>
+</section>
+
+<section id="login">
+  <h2>Acesso do Administrador</h2>
+  <input id="adminPass" type="password" placeholder="Senha do administrador" />
+  <button class="btn" onclick="loginAdmin()">Entrar</button>
+</section>
+
+<section id="admin">
+  <h2>Painel do Administrador</h2>
+  <div class="admin-wrapper">
+    <h3>Mensagem da IA</h3>
+    <textarea id="aiMessage" placeholder="Olá 👋 sou a assistente virtual. Clique abaixo para falar no WhatsApp."></textarea>
+    <button class="btn" onclick="saveAIMessage()">Guardar Mensagem</button>
+    <hr>
+    <h3>Adicionar Produto</h3>
+    <input id="pname" placeholder="Nome do produto 📛" />
+    <textarea id="pdesc" placeholder="Descrição do produto"></textarea>
+    <input id="pimage" type="file" accept="image/*" />
+    <button class="btn" onclick="addProduct()">Adicionar Produto</button>
+    <h3>Produtos</h3>
+    <div id="adminGrid" class="grid"></div>
+  </div>
+</section>
+
+<section id="catalogo">
+  <h2>Catálogo</h2>
+  <div id="productGrid" class="grid"></div>
+</section>
+
+<section id="chat">
+  <h2>Assistente Virtual</h2>
+  <div class="chat-box">
+    <div id="aiText" class="chat-msg"></div>
+    <a id="waLink" class="btn" target="_blank">Continuar no WhatsApp</a>
+  </div>
+</section>
+
+<script>
+const ADMIN_PASSWORD = '1234';
+const WHATSAPP_LINK = 'https://wa.me/258847626737';
+let db;
+let currentProducts = [];
+
+const request = indexedDB.open('hicgroup_db', 1);
+request.onupgradeneeded = e => {
+  db = e.target.result;
+  if(!db.objectStoreNames.contains('products')) db.createObjectStore('products', { keyPath: 'id' });
+  if(!db.objectStoreNames.contains('config')) db.createObjectStore('config', { keyPath: 'key' });
+};
+request.onsuccess = e => { db = e.target.result; loadData(); };
+
+function showAdmin(){ document.getElementById('login').scrollIntoView({behavior:'smooth'}); }
+function loginAdmin(){
+  if(adminPass.value === ADMIN_PASSWORD){
+    login.style.display='none';
+    admin.style.display='block';
+  } else alert('Senha incorreta');
+}
+
+function loadData(){
+  const tx = db.transaction(['products','config'],'readonly');
+  tx.objectStore('products').getAll().onsuccess = e => {
+    currentProducts = e.target.result || [];
+    renderProducts(currentProducts);
+    if(currentProducts.length === 0){ hideChat(); }
+  };
+  tx.objectStore('config').get('ai').onsuccess = e => {
+    aiMessage.value = e.target.result?.value || 'Olá 👋 sou a assistente virtual. Clique abaixo para falar no WhatsApp.';
+  };
+}
+
+function renderProducts(list){
+  productGrid.innerHTML=''; adminGrid.innerHTML='';
+  if(list.length===0){ productGrid.innerHTML='<p>Nenhum produto disponível.</p>'; return; }
+  list.forEach(p=>{
+    productGrid.innerHTML+=`<div class='card'>
+      <img src='${p.img}' alt='Produto'>
+      <h3>${p.name}</h3>
+      <p>${p.desc}</p>
+      <button class='btn' onclick="openChat('${p.name.replace(/'/g,"\\'")}')">Comprar</button>
+    </div>`;
+    adminGrid.innerHTML+=`<div class='card'>
+      <h3>${p.name}</h3>
+      <button class='btn btn-danger' onclick="deleteProduct('${p.id}')">Eliminar</button>
+    </div>`;
+  });
+}
+
+function addProduct(){
+  if(!pname.value || !pdesc.value || !pimage.files[0]){ alert('Preencha todos os campos'); return; }
+  const r=new FileReader();
+  r.onload=()=>{
+    db.transaction('products','readwrite').objectStore('products').put({
+      id:Date.now().toString(),
+      name:pname.value,
+      desc:pdesc.value,
+      img:r.result
+    }).transaction.oncomplete=()=>{
+      pname.value=''; pdesc.value=''; pimage.value='';
+      loadData();
+    };
+  };
+  r.readAsDataURL(pimage.files[0]);
+}
+
+function deleteProduct(id){
+  db.transaction('products','readwrite').objectStore('products').delete(id).transaction.oncomplete=loadData;
+}
+
+function saveAIMessage(){
+  db.transaction('config','readwrite').objectStore('config').put({key:'ai',value:aiMessage.value});
+  alert('Mensagem da IA guardada');
+}
+
+function openChat(product){
+  if(currentProducts.length === 0) return;
+  catalogo.style.display='none';
+  chat.style.display='block';
+  const msg = aiMessage.value || 'Olá 👋 sou a assistente virtual.';
+  aiText.textContent = msg + '\n\nProduto: ' + product + '\n\nWhatsApp: ' + WHATSAPP_LINK;
+  waLink.href = WHATSAPP_LINK + '?text=' + encodeURIComponent('Olá, quero comprar o produto: ' + product);
+}
+
+function hideChat(){
+  chat.style.display='none';
+  catalogo.style.display='block';
+}
+</script>
+</body>
+</html>
